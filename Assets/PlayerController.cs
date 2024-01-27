@@ -31,45 +31,14 @@ public class PlayerController : MonoBehaviour
         nextPosition.x = instance.position.x + moveOffset.x;
         nextPosition.z = instance.position.z + moveOffset.y;
 
-                //Check that next spot is valid;
-                (bool, bool,bool) overlaps = CheckOverlap(instance, nextPosition);
+        //Check that next spot is valid;
+        bool overlaps = CheckOverlap(instance, nextPosition);
 
-        if(overlaps.Item1 && overlaps.Item2|| overlaps.Item1 && overlaps.Item3||overlaps.Item2&&overlaps.Item3) 
-        { 
-        
-        }
-        if(overlaps.Item1 == instance.Cyan&& overlaps.Item2== instance.Magenta&& overlaps.Item3== instance.Yellow)
+        if(overlaps)
         {
             nextPosition = instance.position;
         }
-        else if ((overlaps.Item1 || overlaps.Item2 || overlaps.Item3)&& (!overlaps.Item1||!overlaps.Item2||!overlaps.Item3 ))
-        {
-            if (overlaps.Item1 == true)
-            {
 
-                instance.Cyan = false;
-                PlayerInstance newChar = new PlayerInstance(instance.position, true, false, false);
-                instances.Add(newChar);
-
-            }
-            if (overlaps.Item2 == true)
-            {
-                instance.Magenta = false;
-                PlayerInstance newChar = new PlayerInstance(instance.position, false, true, false);
-                instances.Add(newChar);
-
-            }
-            if (overlaps.Item3 == true)
-            {
-                instance.Yellow = false;
-                PlayerInstance newChar = new PlayerInstance(instance.position, false, false, true);
-                instances.Add(newChar);
-            }
-        }
-        else 
-        {
-            //nextPosition = instance.position;
-        }
         instance.position = nextPosition;
     
         
@@ -85,6 +54,7 @@ public class PlayerController : MonoBehaviour
         {
             PlayerInstance player = instances[i];
             playerMesh[i].transform.position = player.position;
+            playerMesh[i].SetActive(true);
             Renderer playerRenderer = playerMesh[i].GetComponentInChildren<Renderer>();
             if (player.Cyan == true && player.Magenta == true && player.Yellow == true)
             {
@@ -123,11 +93,11 @@ public class PlayerController : MonoBehaviour
             }
         }
         }
-    private (bool,bool,bool) CheckOverlap(PlayerInstance instance, Vector3 position)
+    private bool CheckOverlap(PlayerInstance instance, Vector3 position)
     {
-        bool cyanOverlap = false;
-        bool magentaOverlap = false;
-        bool yellowOverlap = false;
+        bool hueOverlap = false;
+
+
         //LayerMask mask = LayerMask.GetMask("ColorRegion");
         Vector3 sphereBottom = position + Vector3.up * radius;
         Vector3 sphereTop = position + Vector3.up * height + Vector3.down * radius;
@@ -137,20 +107,9 @@ public class PlayerController : MonoBehaviour
         {
             if (collision.TryGetComponent(out ColorComponent colorComponent))
             {
-
-                if (instance.Cyan && instance.Cyan == colorComponent.Cyan)
+                if (!(instance.Cyan == colorComponent.Cyan && instance.Magenta == colorComponent.Magenta && instance.Yellow == colorComponent.Yellow))
                 {
-                    cyanOverlap = true;
-
-                }
-
-                if (instance.Magenta && instance.Magenta == colorComponent.Magenta)
-                {
-                    magentaOverlap = true;
-                }
-                if (instance.Yellow && instance.Yellow == colorComponent.Yellow)
-                {
-                    yellowOverlap = true;
+                    hueOverlap = true;
                 }
             }
             else
@@ -160,14 +119,43 @@ public class PlayerController : MonoBehaviour
             }
         }
         //Debug.Log("Overlaps { Cyan: " + cyanOverlap + ", Magenta: " + magentaOverlap+ ", Yellow: "+ yellowOverlap+" }");
-        return (cyanOverlap, magentaOverlap, yellowOverlap);
+        return hueOverlap;
     }
+
     public void OnMove(InputValue value)
     {
         moveInputDirection = value.Get<Vector2>();
     }
     public void OnInteract(InputValue value)
     {
+        float mergeDistance=1;
+        int closestIndex = -1;
+        float closestDistance =100;
+        for(int i =0; i<instances.Count; i++)
+        {
+            if (instances[i] == instances[controlledIndex])
+            {
+                continue;
+            }
+            float checkDistance = Vector3.Distance(instances[i].position, instances[controlledIndex].position);
+            if (checkDistance < mergeDistance)
+            {
+                closestIndex = i;
+                closestDistance = checkDistance;
+            }
+        }
+        if(closestIndex != -1&& closestDistance<mergeDistance)
+        {
+            PlayerInstance merge = instances[closestIndex];
+            PlayerInstance playerControlled = instances[controlledIndex];
+            playerControlled.Cyan |= merge.Cyan;
+            playerControlled.Magenta |= merge.Magenta;
+            playerControlled.Yellow |= merge.Yellow;
+            instances.RemoveAt(closestIndex);
+            playerMesh[closestIndex].SetActive(false);
+            playerMesh[controlledIndex].SetActive(false);
+        }
+
         controlledIndex++;
         controlledIndex %= instances.Count;
     }
@@ -226,6 +214,60 @@ public class PlayerController : MonoBehaviour
 
         Gizmos.color = Color.grey;
         Gizmos.DrawSphere(instances[controlledIndex].position + Vector3.up * height, radius / 3f);
+    }
+    public void OnSplitR()
+    {
+        PlayerInstance controlledInstance = instances[controlledIndex];
+        if (controlledInstance.Magenta == true&& (controlledInstance.Yellow||controlledInstance.Cyan))
+        {
+            PlayerInstance newInstance = new PlayerInstance(instances[controlledIndex].position, false, true, false);
+            instances.Add(newInstance);
+            controlledInstance.Magenta = false;
+            for (int i = 0; i < instances.Count; i++)
+            {
+                if (instances[i] == newInstance)
+                {
+                    controlledIndex = i;
+                    break;
+                }
+            }
+        }
+    }
+    public void OnSplitY()
+    {
+        PlayerInstance controlledInstance = instances[controlledIndex];
+        if (controlledInstance.Yellow == true && (controlledInstance.Magenta||controlledInstance.Cyan))
+        {
+            PlayerInstance newInstance = new PlayerInstance(instances[controlledIndex].position, false, false, true);
+            instances.Add(newInstance);
+            controlledInstance.Yellow = false;
+            for (int i = 0; i < instances.Count; i++)
+            {
+                if (instances[i] == newInstance)
+                {
+                    controlledIndex = i;
+                    break;
+                }
+            }
+        }
+    }
+    public void OnSplitB()
+    {
+        PlayerInstance controlledInstance = instances[controlledIndex];
+        if (controlledInstance.Cyan == true&& (controlledInstance.Magenta||controlledInstance.Yellow))
+        {
+            PlayerInstance newInstance = new PlayerInstance(instances[controlledIndex].position, true, false, false);
+            instances.Add(newInstance);
+            controlledInstance.Cyan = false;
+            for(int i = 0; i<instances.Count; i++)
+            {
+                if (instances[i] == newInstance)
+                {
+                    controlledIndex = i; 
+                    break;
+                }
+            }
+        }
     }
 }
 
