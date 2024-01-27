@@ -71,47 +71,58 @@ public class PlayerController : MonoBehaviour
             //nextPosition = instance.position;
         }
         instance.position = nextPosition;
-        return;
-        if (instance.Magenta == true && instance.Cyan == true && instance.Yellow == true)
-        {
-            if (overlaps.Item1 && overlaps.Item2 && overlaps.Item3)
-            {
-                nextPosition = instance.position;
-            }
-            else
-            {
-                if (overlaps.Item1 == true)
-                {
-
-                    instance.Cyan = false;
-                    PlayerInstance newChar = new PlayerInstance(instance.position, true, false, false);
-                    instances.Add(newChar);
-
-                }
-                if (overlaps.Item2 == true)
-                {
-                    instance.Magenta = false;
-                    PlayerInstance newChar = new PlayerInstance(instance.position, false, true, false);
-                    instances.Add(newChar);
-
-                }
-                if (overlaps.Item3 == true)
-                {
-                    instance.Yellow = false;
-                    PlayerInstance newChar = new PlayerInstance(instance.position, false, false, true);
-                    instances.Add(newChar);
-                }
-            }
-        }
-        else if (overlaps.Item2 == true || overlaps.Item1 == true || overlaps.Item3 == true)
-        {
-            nextPosition = instance.position;
-        }
-                instance.position = nextPosition;
-
-            
+    
         
+
+
+        DrawCharacters();
     }
+    [SerializeField]
+    private List<GameObject> playerMesh;
+    private void DrawCharacters()
+    {
+        for(int i = 0; i < instances.Count; i++)
+        {
+            PlayerInstance player = instances[i];
+            playerMesh[i].transform.position = player.position;
+            Renderer playerRenderer = playerMesh[i].GetComponentInChildren<Renderer>();
+            if (player.Cyan == true && player.Magenta == true && player.Yellow == true)
+            {
+                playerRenderer.material.color =Color.white;
+               
+            }
+            if (player.Cyan == false && player.Magenta == false && player.Yellow == false)
+            {
+                playerRenderer.material.color = Color.black;
+                
+            }
+            if (player.Cyan == true && player.Magenta == false && player.Yellow == false)
+            {
+                playerRenderer.material.color = Color.cyan;
+               
+            }
+            if (player.Cyan == false && player.Magenta == true && player.Yellow == false)
+            {
+                playerRenderer.material.color = Color.magenta;
+            }
+            if (player.Cyan == false && player.Magenta == false && player.Yellow == true)
+            {
+                playerRenderer.material.color = Color.yellow;
+            }
+            if (player.Cyan == true && player.Magenta == false && player.Yellow == true)
+            {
+                playerRenderer.material.color = Color.green;
+            }
+            if (player.Cyan == false && player.Magenta == true && player.Yellow == true)
+            {
+                playerRenderer.material.color = Color.red;
+            }
+            if (player.Cyan == true && player.Magenta == true && player.Yellow == false)
+            {
+                playerRenderer.material.color = Color.blue;
+            }
+        }
+        }
     private (bool,bool,bool) CheckOverlap(PlayerInstance instance, Vector3 position)
     {
         bool cyanOverlap = false;
