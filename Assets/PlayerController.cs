@@ -4,13 +4,14 @@ using Unity.VisualScripting;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.SceneManagement;
+using static UnityEngine.Rendering.DebugUI;
 
 public class PlayerController : MonoBehaviour
 {
     [SerializeField]
     List<PlayerInstance> instances = new List<PlayerInstance>() { new PlayerInstance(Vector3.zero,true,true, true) };
 
-    Vector2 moveInputDirection = Vector2.zero;
+    Vector3 moveInputDirection = Vector3.zero;
     float moveSpeed = 5f;
 
     [SerializeField]
@@ -20,21 +21,39 @@ public class PlayerController : MonoBehaviour
 
     int controlledIndex = 0;
 
-
+    public Vector3 GetPlayerPosition()
+    {
+        return instances[controlledIndex].position;
+    }
     // Update is called once per frame
     void Update()
     {
+        Vector3 forward = Camera.main.transform.forward;
+        Vector3 right = Camera.main.transform.right;
+        forward.y = 0;
+        forward = forward.normalized;
+        forward *= moveInputDirection.z;
+        right *= moveInputDirection.x;
+
+
         PlayerInstance instance = instances[controlledIndex];
-        Vector2 moveDirection = moveInputDirection;  
-        Vector2 moveOffset = moveDirection * moveSpeed * Time.deltaTime;
+ 
+        Vector3 moveOffset = (forward+right) * moveSpeed * Time.deltaTime;
         Vector3 nextPosition = Vector3.zero;        
         nextPosition.x = instance.position.x + moveOffset.x;
-        nextPosition.z = instance.position.z + moveOffset.y;
+        nextPosition.y = instance.position.y + moveOffset.y;
+        nextPosition.z = instance.position.z + moveOffset.z;
 
         //Check that next spot is valid;
+        
+        bool walkable = false;
+        if (Physics.Raycast(nextPosition+Vector3.up, Vector3.down, out RaycastHit hit, 2f, 1 << LayerMask.NameToLayer("Default")))
+        {
+            nextPosition.y = hit.point.y+0.2f;
+            walkable = true;
+        }
         bool overlaps = CheckOverlap(instance, nextPosition);
-
-        if(overlaps)
+        if (overlaps||!walkable)
         {
             nextPosition = instance.position;
         }
@@ -115,46 +134,81 @@ public class PlayerController : MonoBehaviour
             else
             {
                 //Load next level when colliding with anything that doesn't have the proper component
+                if(collision.tag== "Finish")
                 SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex + 1);
+                hueOverlap = true;
             }
         }
         //Debug.Log("Overlaps { Cyan: " + cyanOverlap + ", Magenta: " + magentaOverlap+ ", Yellow: "+ yellowOverlap+" }");
         return hueOverlap;
     }
 
+    public float yrot =0;
+    public void OnLook(InputValue value)
+    {
+        yrot += value.Get<Vector2>().x;
+    }
     public void OnMove(InputValue value)
     {
-        moveInputDirection = value.Get<Vector2>();
+
+
+
+        moveInputDirection = new Vector3(value.Get<Vector2>().x, 0, value.Get<Vector2>().y);
+
     }
-    public void OnInteract(InputValue value)
+    public void OnProject(InputValue value)
     {
-        float mergeDistance=1;
+        float closestAngle=180f;
         int closestIndex = -1;
-        float closestDistance =100;
-        for(int i =0; i<instances.Count; i++)
+        
+        Vector3  direction = Camera.main.transform.forward;
+        direction.y = 0;
+        direction = direction.normalized;
+
+        for (int i = 0; i < instances.Count; i++)
         {
             if (instances[i] == instances[controlledIndex])
             {
                 continue;
             }
-            float checkDistance = Vector3.Distance(instances[i].position, instances[controlledIndex].position);
-            if (checkDistance < mergeDistance)
+            Vector3 offset = instances[i].position - instances[controlledIndex].position;
+            float angle = Vector3.Angle(offset, direction);
+            
+            
+            if(!Physics.Raycast(instances[controlledIndex].position, offset, offset.magnitude, 1 << LayerMask.NameToLayer("Default")))
             {
-                closestIndex = i;
-                closestDistance = checkDistance;
+                if (angle < closestAngle)
+                {
+                    closestIndex = i;
+                    closestAngle = angle;
+                }
             }
+
+
         }
-        if(closestIndex != -1&& closestDistance<mergeDistance)
+        if (closestIndex != -1)
         {
             PlayerInstance merge = instances[closestIndex];
             PlayerInstance playerControlled = instances[controlledIndex];
-            playerControlled.Cyan |= merge.Cyan;
-            playerControlled.Magenta |= merge.Magenta;
-            playerControlled.Yellow |= merge.Yellow;
-            instances.RemoveAt(closestIndex);
-            playerMesh[closestIndex].SetActive(false);
+            merge.Cyan |= playerControlled.Cyan;
+            merge.Magenta |= playerControlled.Magenta;
+            merge.Yellow |= playerControlled.Yellow;
+            instances.RemoveAt(controlledIndex);
             playerMesh[controlledIndex].SetActive(false);
+            playerMesh[closestIndex].SetActive(false);
+
+            for (int i = 0; i < instances.Count; i++)
+            {
+                if (instances[i] == merge)
+                {
+                    controlledIndex = i;
+                    break;
+                }
+            }
         }
+    }
+    public void OnInteract(InputValue value)
+    {
 
         controlledIndex++;
         controlledIndex %= instances.Count;
